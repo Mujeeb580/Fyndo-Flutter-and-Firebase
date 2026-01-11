@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/product_model.dart';
 import '../services/database_service.dart';
 
@@ -11,45 +13,62 @@ class AddProductScreen extends StatefulWidget {
 
 class _AddProductScreenState extends State<AddProductScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _imageUrlController = TextEditingController();
+  XFile? _pickedFile;
+  final ImagePicker _picker = ImagePicker();
+  bool _isUploading = false;
 
+  // Form Fields
   String _name = '';
-  double _price = 0;
   String _description = '';
+  double _price = 0;
+  double _originalPrice = 0;
   int _stock = 1;
   String _category = 'Smart Gadgets';
 
-  @override
-  void initState() {
-    super.initState();
-    _imageUrlController.text =
-        'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1000&auto=format&fit=crop';
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        setState(() => _pickedFile = image);
+      }
+    } catch (e) {
+      debugPrint("Error picking image: $e");
+    }
+  }
+
+  Future<String?> _uploadImage() async {
+    if (_pickedFile == null) return null;
+    try {
+      String fileName = 'products/${DateTime.now().millisecondsSinceEpoch}.png';
+      Reference storageRef = FirebaseStorage.instance.ref().child(fileName);
+      final uploadTask = storageRef.putData(await _pickedFile!.readAsBytes());
+      final snapshot = await uploadTask;
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      return null;
+    }
   }
 
   void _saveProduct() async {
-    if (_formKey.currentState!.validate()) {
+    if (_formKey.currentState!.validate() && _pickedFile != null) {
+      setState(() => _isUploading = true);
       _formKey.currentState!.save();
 
-      Product newProduct = Product(
-        name: _name,
-        price: _price,
-        imageUrl: _imageUrlController.text,
-        category: _category,
-        // Ensure your Product model has these fields, or add them now
-        // description: _description,
-        // stock: _stock,
-      );
+      String? imageUrl = await _uploadImage();
 
-      await DatabaseService().addProduct(newProduct);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Successfully added to FYNDO!"),
-            backgroundColor: Color(0xFF6366F1),
-          ),
+      if (imageUrl != null) {
+        Product newProduct = Product(
+          id: '',
+          name: _name,
+          price: _price,
+          imageUrl: imageUrl,
+          category: _category,
         );
-        Navigator.pop(context);
+
+        await DatabaseService().addProduct(newProduct);
+        if (mounted) Navigator.pop(context);
+      } else {
+        setState(() => _isUploading = false);
       }
     }
   }
@@ -60,8 +79,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text(
-          "Create Listing",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          "New Listing",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -69,6 +92,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       ),
       body: Container(
         height: MediaQuery.of(context).size.height,
+        width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -78,176 +102,61 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             child: Form(
               key: _formKey,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- PREMIUM IMAGE PREVIEW ---
-                  Container(
-                    height: 200,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                      image: DecorationImage(
-                        image: NetworkImage(_imageUrlController.text),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(25),
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            Colors.black.withOpacity(0.6),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                      alignment: Alignment.bottomRight,
-                      padding: const EdgeInsets.all(12),
-                      child: FloatingActionButton.small(
-                        backgroundColor: Colors.white,
-                        onPressed: _showImageUrlDialog,
-                        child: const Icon(Icons.edit, color: Color(0xFF6366F1)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
+                  _buildSectionLabel("PRODUCT MEDIA"),
+                  _buildOpaqueImageCard(),
+                  const SizedBox(height: 25),
 
-                  // --- INPUT FIELDS CARD ---
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(30),
+                  _buildSectionLabel("GENERAL DETAILS"),
+                  _buildOpaqueCard([
+                    _buildOpaqueTextField(
+                      "Product Name",
+                      (v) => _name = v!,
+                      hint: "Enter title",
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 15),
+                    _buildOpaqueTextField(
+                      "Description",
+                      (v) => _description = v!,
+                      hint: "Describe the item...",
+                      maxLines: 3,
+                    ),
+                  ]),
+                  const SizedBox(height: 25),
+
+                  _buildSectionLabel("PRICING & STOCK"),
+                  _buildOpaqueCard([
+                    Row(
                       children: [
-                        const Text(
-                          "Primary Information",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Color(0xFF1E1B4B),
+                        Expanded(
+                          child: _buildOpaqueTextField(
+                            "Price (\$)",
+                            (v) => _price = double.parse(v!),
+                            isNumber: true,
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          decoration: _buildInputDecoration(
-                            "Product Title",
-                            Icons.title,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildOpaqueTextField(
+                            "Stock",
+                            (v) => _stock = int.parse(v!),
+                            isNumber: true,
                           ),
-                          validator: (v) =>
-                              v!.isEmpty ? "Title required" : null,
-                          onSaved: (v) => _name = v!,
-                        ),
-                        const SizedBox(height: 15),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                decoration: _buildInputDecoration(
-                                  "Price",
-                                  Icons.payments,
-                                ),
-                                keyboardType: TextInputType.number,
-                                onSaved: (v) => _price = double.parse(v!),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextFormField(
-                                decoration: _buildInputDecoration(
-                                  "Stock",
-                                  Icons.inventory_2,
-                                ),
-                                keyboardType: TextInputType.number,
-                                onSaved: (v) => _stock = int.parse(v!),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 15),
-                        DropdownButtonFormField(
-                          value: _category,
-                          decoration: _buildInputDecoration(
-                            "Category",
-                            Icons.grid_view,
-                          ),
-                          items:
-                              [
-                                    'Electronics',
-                                    'Fashion',
-                                    'Home',
-                                    'Smart Gadgets',
-                                  ]
-                                  .map(
-                                    (c) => DropdownMenuItem(
-                                      value: c,
-                                      child: Text(c),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: (v) =>
-                              setState(() => _category = v.toString()),
-                        ),
-                        const SizedBox(height: 15),
-                        TextFormField(
-                          maxLines: 3,
-                          decoration: _buildInputDecoration(
-                            "Description",
-                            Icons.description,
-                          ),
-                          onSaved: (v) => _description = v!,
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 15),
+                    _buildOpaqueDropdown(),
+                  ]),
                   const SizedBox(height: 40),
 
-                  // --- GRADIENT SUBMIT BUTTON ---
-                  GestureDetector(
-                    onTap: _saveProduct,
-                    child: Container(
-                      height: 65,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF818CF8), Color(0xFF6366F1)],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.indigo.withOpacity(0.4),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Text(
-                          "Publish Product",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  _buildGlassButton(),
+                  const SizedBox(height: 50),
                 ],
               ),
             ),
@@ -257,48 +166,178 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  InputDecoration _buildInputDecoration(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon, color: const Color(0xFF6366F1)),
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(color: Color(0xFF6366F1)),
+  // --- UI COMPONENTS (OPAQUE STYLE) ---
+
+  Widget _buildSectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 10),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.6),
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
+        ),
       ),
     );
   }
 
-  void _showImageUrlDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Image Source"),
-        content: TextField(
-          controller: _imageUrlController,
-          decoration: const InputDecoration(
-            hintText: "Enter Image URL (Unsplash/Imgur)",
-          ),
+  Widget _buildOpaqueCard(List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildOpaqueImageCard() {
+    return GestureDetector(
+      onTap: _pickImage,
+      child: Container(
+        height: 180,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {});
-              Navigator.pop(context);
-            },
-            child: const Text("Set Image"),
+        child: _pickedFile == null
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_a_photo_outlined,
+                    color: Colors.white.withOpacity(0.8),
+                    size: 40,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "UPLOAD IMAGE",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              )
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: Image.network(_pickedFile!.path, fit: BoxFit.cover),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildOpaqueTextField(
+    String label,
+    Function(String?) onSave, {
+    String? hint,
+    bool isNumber = false,
+    int maxLines = 1,
+  }) {
+    return TextFormField(
+      maxLines: maxLines,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(color: Colors.white, fontSize: 15),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+        hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+        filled: true,
+        fillColor: Colors.black.withOpacity(0.1),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 18,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Colors.white, width: 1),
+        ),
+      ),
+      onSaved: onSave,
+      validator: (v) => v!.isEmpty ? "Required" : null,
+    );
+  }
+
+  Widget _buildOpaqueDropdown() {
+    return DropdownButtonFormField(
+      value: _category,
+      dropdownColor: const Color(0xFF1E1B4B),
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: "Category",
+        labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+        filled: true,
+        fillColor: Colors.black.withOpacity(0.1),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Colors.white, width: 1),
+        ),
+      ),
+      items: ['Electronics', 'Fashion', 'Home', 'Smart Gadgets']
+          .map(
+            (c) => DropdownMenuItem(
+              value: c,
+              child: Text(c, style: const TextStyle(color: Colors.white)),
+            ),
+          )
+          .toList(),
+      onChanged: (v) => setState(() => _category = v.toString()),
+    );
+  }
+
+  Widget _buildGlassButton() {
+    return Container(
+      width: double.infinity,
+      height: 65,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF818CF8), Color(0xFF6366F1)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.withOpacity(0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
+      ),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+        ),
+        onPressed: _isUploading ? null : _saveProduct,
+        child: _isUploading
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Text(
+                "PUBLISH PRODUCT",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  letterSpacing: 1.5,
+                ),
+              ),
       ),
     );
   }
