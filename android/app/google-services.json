@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "875686930856",
+    "project_id": "fyndo-f8fea",
+    "storage_bucket": "fyndo-f8fea.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:875686930856:android:7729996cf3ebdb3d6a559d",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "875686930856-s4v9ldetm71f31hp4ifr3mq1si3mdoe3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.flutter_application_1",
+            "certificate_hash": "227c4bc6b4fbc532c37b4916c445538eb173ed66"
+          }
+        },
+        {
+          "client_id": "875686930856-02kdiued8c6mflgq7nn4qsqqluhscpf1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbFruYEAnHR21S5rnbsGMZObn6y12EjuE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "875686930856-02kdiued8c6mflgq7nn4qsqqluhscpf1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
