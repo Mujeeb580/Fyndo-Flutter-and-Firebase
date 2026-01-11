@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'product_details_screen.dart';
 import '../services/database_service.dart';
 import '../models/product_model.dart';
-import '../services/auth_service.dart';
-import '../main.dart'; // Access themeNotifier
+import '../main.dart';
 import 'add_product_screen.dart';
 import 'settings_screen.dart';
 import '../services/ai_service.dart';
@@ -24,12 +22,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final Stream<List<Product>> _productStream = DatabaseService().getProducts();
 
-  // FIX 1: Defined _safeThemeToggle
   void _safeThemeToggle(bool isDark) {
     themeNotifier.value = isDark ? ThemeMode.light : ThemeMode.dark;
   }
 
-  // FIX 2: Defined _confirmDelete
   void _confirmDelete(String productId, String productName) {
     showDialog(
       context: context,
@@ -65,6 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // AI Assistant logic remains same
   void _showAIAssistant(List<Product> currentItems) {
     final TextEditingController aiController = TextEditingController();
     String aiResponse = "Ask me to find the best deal or a specific gift!";
@@ -180,10 +177,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
               final allProducts = snapshot.data ?? [];
 
-              // Filtering & Sorting Logic
+              // FIX: Robust Filtering Logic using .trim() to ensure category moves work
               List<Product> filteredItems = allProducts.where((p) {
                 final matchesCat =
-                    selectedCategory == "All" || p.category == selectedCategory;
+                    selectedCategory == "All" ||
+                    p.category.trim() == selectedCategory.trim();
                 final matchesSearch = p.name.toLowerCase().contains(
                   searchQuery,
                 );
@@ -200,10 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 slivers: [
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 15,
-                      ),
+                      padding: const EdgeInsets.all(20),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -239,6 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
+                  // Search & Sort UI remains the same...
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -300,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  // FIX 3: Added Category chips and Grid display inside the StreamBuilder
+                  // Category Chips
                   SliverToBoxAdapter(
                     child: SizedBox(
                       height: 50,
@@ -328,6 +324,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
+                  // Grid with Product Cards
                   SliverPadding(
                     padding: const EdgeInsets.all(20),
                     sliver: SliverGrid(
@@ -404,12 +401,32 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+          // DELETE BUTTON
           Positioned(
             top: 5,
             right: 5,
             child: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.redAccent),
+              icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
               onPressed: () => _confirmDelete(p.id, p.name),
+            ),
+          ),
+          // EDIT BUTTON: Allows quick updates from home
+          Positioned(
+            top: 5,
+            left: 5,
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.white.withValues(alpha: 0.3),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.edit, color: Colors.white, size: 16),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AddProductScreen(product: p),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
