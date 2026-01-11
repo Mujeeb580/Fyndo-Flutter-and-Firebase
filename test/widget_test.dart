@@ -1,21 +1,17 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+// Ensure this path is correct based on your project name
 import 'package:flutter_application_1/main.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    // FIXED: Changed MyApp() to FyndoApp() to match your main.dart
+    await tester.pumpWidget(const FyndoApp());
 
     // Verify that our counter starts at 0.
+    // Note: Since your app is a shopping app and not the default counter app,
+    // these specific tests below might still fail, but the CODE will now compile.
     expect(find.text('0'), findsOneWidget);
     expect(find.text('1'), findsNothing);
 
