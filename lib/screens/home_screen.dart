@@ -4,7 +4,7 @@ import 'product_details_screen.dart';
 import '../services/database_service.dart';
 import '../models/product_model.dart';
 import '../services/auth_service.dart';
-import '../main.dart'; // Access themeNotifier
+import '../main.dart';
 import 'add_product_screen.dart';
 import 'settings_screen.dart';
 
@@ -18,12 +18,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String selectedCategory = "All";
   String searchQuery = "";
+  String sortBy = "Newest"; // Default sorting state
   final TextEditingController _searchController = TextEditingController();
 
-  // Initialize the stream to fetch data from Firestore
   final Stream<List<Product>> _productStream = DatabaseService().getProducts();
 
-  // Safely toggle theme without build crashes
   void _safeThemeToggle(bool isDark) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -32,7 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // Confirmation Dialog for Deleting
   void _confirmDelete(String productId, String productName) {
     showDialog(
       context: context,
@@ -43,7 +41,10 @@ class _HomeScreenState extends State<HomeScreen> {
           "Delete Item?",
           style: TextStyle(color: Colors.white),
         ),
-        content: Text("Are you sure you want to remove '$productName'?"),
+        content: Text(
+          "Are you sure you want to remove '$productName'?",
+          style: const TextStyle(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -77,8 +78,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final double width = MediaQuery.of(context).size.width;
-
-    // Responsive grid columns
     int crossAxisCount = width > 1200 ? 5 : (width > 800 ? 3 : 2);
 
     return Scaffold(
@@ -100,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
               parent: AlwaysScrollableScrollPhysics(),
             ),
             slivers: [
-              // 1. BRANDING & PROFILE BAR
+              // 1. BRANDING BAR
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -136,40 +135,83 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // 2. SEARCH BAR
+              // 2. SEARCH BAR & SORTING FILTER (REWRITTEN)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
                     vertical: 10,
                   ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: Colors.white.withOpacity(0.3)),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (v) =>
-                          setState(() => searchQuery = v.toLowerCase()),
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        hintText: "Search smart products...",
-                        hintStyle: TextStyle(color: Colors.white60),
-                        prefixIcon: Icon(Icons.search, color: Colors.white),
-                        border: InputBorder.none,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (v) =>
+                                setState(() => searchQuery = v.toLowerCase()),
+                            style: const TextStyle(color: Colors.white),
+                            decoration: const InputDecoration(
+                              hintText: "Search products...",
+                              hintStyle: TextStyle(color: Colors.white60),
+                              prefixIcon: Icon(
+                                Icons.search,
+                                color: Colors.white,
+                              ),
+                              border: InputBorder.none,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 10),
+                      // THE SORTING BUTTON
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: PopupMenuButton<String>(
+                          icon: const Icon(Icons.sort, color: Colors.white),
+                          offset: const Offset(0, 50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          onSelected: (value) => setState(() => sortBy = value),
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: "Newest",
+                              child: Text("Newest first"),
+                            ),
+                            const PopupMenuItem(
+                              value: "Low",
+                              child: Text("Price: Low to High"),
+                            ),
+                            const PopupMenuItem(
+                              value: "High",
+                              child: Text("Price: High to Low"),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
 
               // 3. CATEGORY SELECTOR
               SliverToBoxAdapter(
-                child: Container(
+                child: SizedBox(
                   height: 60,
-                  margin: const EdgeInsets.symmetric(vertical: 10),
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -190,8 +232,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   label: Text(cat),
                                   selected: selectedCategory == cat,
                                   selectedColor: Colors.white,
-                                  backgroundColor: Colors.white.withOpacity(
-                                    0.1,
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.1,
                                   ),
                                   labelStyle: TextStyle(
                                     color: selectedCategory == cat
@@ -209,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // 4. THE PRODUCT GRID
+              // 4. PRODUCT GRID WITH SORTING LOGIC
               StreamBuilder<List<Product>>(
                 stream: _productStream,
                 builder: (context, snapshot) {
@@ -224,7 +266,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  final items = (snapshot.data ?? []).where((p) {
+                  // Filtering logic
+                  List<Product> items = (snapshot.data ?? []).where((p) {
                     final matchesCat =
                         selectedCategory == "All" ||
                         p.category == selectedCategory;
@@ -233,6 +276,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                     return matchesCat && matchesSearch;
                   }).toList();
+
+                  // Sorting Logic applied here
+                  if (sortBy == "Low") {
+                    items.sort((a, b) => a.price.compareTo(b.price));
+                  } else if (sortBy == "High") {
+                    items.sort((a, b) => b.price.compareTo(a.price));
+                  } else {
+                    // Default / Newest (Firestore usually returns in order created)
+                    items = items.reversed.toList();
+                  }
 
                   if (items.isEmpty) {
                     return const SliverToBoxAdapter(
@@ -249,17 +302,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
 
                   return SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
+                    padding: const EdgeInsets.all(16),
                     sliver: SliverGrid(
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: crossAxisCount,
                         crossAxisSpacing: 15,
                         mainAxisSpacing: 15,
-                        childAspectRatio:
-                            0.75, // Adjust this if cards look squashed
+                        childAspectRatio: 0.75,
                       ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) =>
@@ -270,7 +319,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
-
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
@@ -294,17 +342,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // THE FIXED PRODUCT CARD
   Widget _buildProductCard(Product p, bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(isDark ? 0.1 : 0.2),
+        color: Colors.white.withValues(alpha: isDark ? 0.1 : 0.2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
       ),
       child: Stack(
         children: [
-          // LAYER 1: CONTENT (Image and Name)
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -356,8 +402,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-
-          // LAYER 2: THE DELETE BUTTON (Guaranteed top-most layer)
           Positioned(
             top: 5,
             right: 5,
